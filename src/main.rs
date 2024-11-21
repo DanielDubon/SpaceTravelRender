@@ -36,7 +36,8 @@ pub struct Uniforms {
     projection_matrix: Mat4,
     viewport_matrix: Mat4,
     time: u32,
-    noise: FastNoiseLite
+    noise: FastNoiseLite,
+    camera_position: Vec3,
 }
 
 pub struct Spaceship {
@@ -204,6 +205,62 @@ fn render(
     }
 }
 
+fn calculate_detail_level(distance: f32) -> usize {
+    if distance < 5.0 {
+        0  // Máximo detalle
+    } else if distance < 20.0 {
+        1  // Detalle medio
+    } else {
+        2  // Bajo detalle
+    }
+}
+
+fn get_lod_mesh(vertex_arrays: &[Vertex], detail_level: usize) -> &[Vertex] {
+    // Por ahora, retornamos el mismo mesh para todos los niveles
+    vertex_arrays
+}
+
+struct Frustum {
+    fov: f32,
+    near: f32,
+    far: f32,
+    aspect: f32,
+}
+
+impl Frustum {
+    fn new(fov: f32, near: f32, far: f32, aspect: f32) -> Self {
+        Self {
+            fov,
+            near,
+            far,
+            aspect,
+        }
+    }
+
+    fn is_visible(&self, camera_pos: &Vec3, camera_forward: &Vec3, object_pos: &Vec3, object_radius: f32) -> bool {
+        // Verificar distancia
+        let to_object = object_pos - camera_pos;
+        let distance = to_object.magnitude();
+        
+        // Si está muy cerca o muy lejos, no renderizar
+        if distance < self.near || distance > self.far {
+            return false;
+        }
+
+        // Verificar si está dentro del campo de visión
+        let direction = to_object.normalize();
+        let angle = camera_forward.dot(&direction).acos();
+        
+        // Convertir FOV a radianes y comparar
+        let half_fov = (self.fov * std::f32::consts::PI / 180.0) / 2.0;
+        
+        // Añadir el radio del objeto al ángulo de visión
+        let apparent_angle = half_fov + (object_radius / distance).asin();
+        
+        angle <= apparent_angle
+    }
+}
+
 fn main() {
     let window_width = 800;
     let window_height = 600;
@@ -245,7 +302,8 @@ fn main() {
         projection_matrix, 
         viewport_matrix, 
         time: 0, 
-        noise
+        noise,
+        camera_position: camera.eye,
     };
 
     
@@ -326,6 +384,13 @@ fn main() {
     };
     let spaceship_vertices = spaceship.model.get_vertex_array();
 
+    let frustum = Frustum::new(
+        45.0,           // FOV en grados
+        0.1,            // Near plane
+        1000.0,         // Far plane
+        window_width as f32 / window_height as f32  // Aspect ratio
+    );
+
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
             break;
@@ -340,17 +405,24 @@ fn main() {
         // 1. Primero renderizar el skybox (fondo)
         skybox.render(&mut framebuffer, &uniforms, camera.eye);
 
-        // 2. Luego los planetas
+        uniforms.camera_position = camera.eye;  // Actualizar posición de la cámara
+        let camera_forward = camera.get_forward();
+
+        // Renderizar planetas con culling
         for body in &celestial_bodies {
-            uniforms.model_matrix = create_model_matrix(
-                body.position,
-                body.scale,
-                body.rotation + Vec3::new(0.0, time as f32 * 0.01, 0.0)
-            );
-            uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-            uniforms.time = time;
+            let apparent_radius = body.scale * 2.0;
             
-            render(&mut framebuffer, &uniforms, &vertex_arrays, &body.shader_type);
+            if frustum.is_visible(&camera.eye, &camera_forward, &body.position, apparent_radius) {
+                uniforms.model_matrix = create_model_matrix(
+                    body.position,
+                    body.scale,
+                    body.rotation + Vec3::new(0.0, time as f32 * 0.01, 0.0)
+                );
+                uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
+                uniforms.time = time;
+                
+                render(&mut framebuffer, &uniforms, &vertex_arrays, &body.shader_type);
+            }
         }
 
         // 3. Finalmente la nave (siempre al final para que esté encima)
@@ -419,3 +491,29 @@ fn handle_input(window: &Window, camera: &mut Camera) {
         camera.move_up(-movement_speed * 0.7);
     }
 }
+struct ObjectPool {
+    vertices: Vec<Vec<Vertex>>,
+    available: Vec<usize>,
+}
+
+impl ObjectPool {
+    fn new() -> Self {
+        Self {
+            vertices: Vec::new(),
+            available: Vec::new(),
+        }
+    }
+
+    fn get_vertices(&mut self) -> Option<&[Vertex]> {
+        if let Some(index) = self.available.pop() {
+            Some(&self.vertices[index])
+        } else {
+            None
+        }
+    }
+
+    fn return_vertices(&mut self, index: usize) {
+        self.available.push(index);
+    }
+}
+
