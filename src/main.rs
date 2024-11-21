@@ -330,13 +330,13 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
 
     // Añadir warping a planetas específicos con KeyRepeat::No
     if window.is_key_pressed(Key::Key1, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[0], 5.0); // Sol
+        warp_to_planet(camera, &celestial_bodies[0], 8.0); // Sol (más lejos por ser más grande)
     } else if window.is_key_pressed(Key::Key2, KeyRepeat::No) {
         warp_to_planet(camera, &celestial_bodies[3], 3.0); // Tierra
     } else if window.is_key_pressed(Key::Key3, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[5], 4.0); // Júpiter
+        warp_to_planet(camera, &celestial_bodies[5], 5.0); // Júpiter (más lejos por ser grande)
     } else if window.is_key_pressed(Key::Key4, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[10], 8.0); // Agujero Negro
+        warp_to_planet(camera, &celestial_bodies[10], 12.0); // Agujero Negro (mucho más lejos)
     }
 
     // Calcular la nueva posición antes de aplicarla
@@ -387,11 +387,16 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
 }
 
 fn warp_to_planet(camera: &mut Camera, body: &CelestialBody, distance: f32) {
-    // Calcular posición relativa considerando el tamaño del planeta
+    // Calcular la posición relativa considerando el movimiento orbital
     let offset = Vec3::new(0.0, 0.0, distance + body.scale);
+    
+    // Usar la posición actual del planeta
     let target_pos = body.position + offset;
+    
+    // Calcular la dirección mirando hacia el planeta
     let target_direction = (body.position - target_pos).normalize();
     
+    // Iniciar el warp con la posición y dirección calculadas
     camera.start_warp(target_pos, target_direction);
 }
 
@@ -606,9 +611,11 @@ fn main() {
         }
 
         time += 1;
-
+        
+        // Actualizar la cámara antes de manejar el input
+        camera.update_warp(0.016); // 60 FPS aproximadamente
         handle_input(&window, &mut camera, &celestial_bodies);
-
+        
         framebuffer.clear();
         
         // 1. Primero renderizar el skybox (fondo)
