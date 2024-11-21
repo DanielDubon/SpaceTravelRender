@@ -1,5 +1,5 @@
 use nalgebra_glm::{Vec3, Mat4, look_at, perspective};
-use minifb::{Key, Window, WindowOptions};
+use minifb::{Key, Window, WindowOptions, KeyRepeat};
 use std::f32::consts::PI;
 mod skybox;
 
@@ -278,6 +278,17 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
     let rotation_speed = PI/128.0;
     let bank_angle = PI/16.0;
 
+    // Añadir warping a planetas específicos con KeyRepeat::No
+    if window.is_key_pressed(Key::Key1, KeyRepeat::No) {
+        warp_to_planet(camera, &celestial_bodies[0], 5.0); // Sol
+    } else if window.is_key_pressed(Key::Key2, KeyRepeat::No) {
+        warp_to_planet(camera, &celestial_bodies[3], 3.0); // Tierra
+    } else if window.is_key_pressed(Key::Key3, KeyRepeat::No) {
+        warp_to_planet(camera, &celestial_bodies[5], 4.0); // Júpiter
+    } else if window.is_key_pressed(Key::Key4, KeyRepeat::No) {
+        warp_to_planet(camera, &celestial_bodies[10], 8.0); // Agujero Negro
+    }
+
     // Calcular la nueva posición antes de aplicarla
     let mut new_position = camera.eye;
 
@@ -323,6 +334,21 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
         camera.eye = new_position;
         camera.center = camera.eye + camera.get_forward();
     }
+}
+
+fn warp_to_planet(camera: &mut Camera, body: &CelestialBody, distance: f32) {
+    // Calcular posición relativa considerando el tamaño del planeta
+    let offset = Vec3::new(0.0, 0.0, distance + body.scale);
+    camera.eye = body.position + offset;
+    
+    // Orientar la cámara hacia el planeta
+    let direction = (body.position - camera.eye).normalize();
+    camera.pitch = (direction.y).asin();
+    camera.yaw = direction.z.atan2(direction.x);
+    camera.roll = 0.0;
+    
+    // Actualizar el centro de la vista
+    camera.center = camera.eye + camera.get_forward();
 }
 
 fn main() {
