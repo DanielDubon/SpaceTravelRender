@@ -28,6 +28,8 @@ pub struct CelestialBody {
     scale: f32,
     rotation: Vec3,
     shader_type: PlanetType,
+    orbital_distance: f32,
+    orbital_speed: f32,
 }
 
 pub struct Uniforms {
@@ -397,66 +399,88 @@ fn main() {
             scale: 2.0,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Sun,
+            orbital_distance: 0.0,
+            orbital_speed: 0.0,
         },
         CelestialBody {
             position: Vec3::new(6.0, 0.0, 0.0),
             scale: 0.4,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Mercury,
+            orbital_distance: 12.0,
+            orbital_speed: 0.0002,
         },
         CelestialBody {
             position: Vec3::new(12.0, 0.0, 0.0),
             scale: 0.6,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Venus,
+            orbital_distance: 24.0,
+            orbital_speed: 0.00015,
         },
         CelestialBody {
             position: Vec3::new(18.0, 0.0, 0.0),
             scale: 0.7,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Earth,
+            orbital_distance: 36.0,
+            orbital_speed: 0.0001,
         },
         CelestialBody {
             position: Vec3::new(24.0, 0.0, 0.0),
             scale: 0.5,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Mars,
+            orbital_distance: 48.0,
+            orbital_speed: 0.00008,
         },
         CelestialBody {
             position: Vec3::new(32.0, 0.0, 0.0),
             scale: 1.5,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Jupiter,
+            orbital_distance: 64.0,
+            orbital_speed: 0.00005,
         },
         CelestialBody {
             position: Vec3::new(40.0, 0.0, 0.0),
             scale: 1.3,
             rotation: Vec3::new(0.2, 0.0, 0.0),
             shader_type: PlanetType::Saturn,
+            orbital_distance: 80.0,
+            orbital_speed: 0.00004,
         },
         CelestialBody {
             position: Vec3::new(48.0, 0.0, 0.0),
             scale: 0.9,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Uranus,
+            orbital_distance: 96.0,
+            orbital_speed: 0.00003,
         },
         CelestialBody {
             position: Vec3::new(56.0, 0.0, 0.0),
             scale: 0.9,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Neptune,
+            orbital_distance: 102.0,
+            orbital_speed: 0.00002,
         },
         CelestialBody {
             position: Vec3::new(18.0, 0.0, 2.0),
             scale: 0.2,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Moon,
+            orbital_distance: 36.0,
+            orbital_speed: 0.0003,
         },
         CelestialBody {
             position: Vec3::new(-20.0, 0.0, -20.0),
             scale: 4.0,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::BlackHole,
+            orbital_distance: 280.0,
+            orbital_speed: 0.00001,
         },
     ];
 
@@ -475,26 +499,14 @@ fn main() {
         window_width as f32 / window_height as f32  // Aspect ratio
     );
 
-    let mut last_time = std::time::Instant::now();
-
     while window.is_open() {
-        let current_time = std::time::Instant::now();
-        let dt = current_time.duration_since(last_time).as_secs_f32();
-        last_time = current_time;
-
         if window.is_key_down(Key::Escape) {
             break;
         }
 
         time += 1;
 
-        // Actualizar el warp antes del input normal
-        camera.update_warp(dt);
-
-        // Solo procesar input si no estamos en warp
-        if !camera.warp_state.is_active {
-            handle_input(&window, &mut camera, &celestial_bodies);
-        }
+        handle_input(&window, &mut camera, &celestial_bodies);
 
         framebuffer.clear();
         
@@ -540,6 +552,13 @@ fn main() {
         
         // Asegurarnos de que la nave siempre esté en frente
         render(&mut framebuffer, &uniforms, &spaceship_vertices, &PlanetType::Spaceship);
+
+        // Actualizar posiciones de los planetas
+        for body in &mut celestial_bodies[1..] {  // Empezar desde 1 para saltar el sol
+            let angle = time as f32 * body.orbital_speed;
+            body.position.x = body.orbital_distance * angle.cos();
+            body.position.z = body.orbital_distance * angle.sin();
+        }
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
