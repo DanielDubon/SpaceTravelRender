@@ -328,61 +328,91 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
     let rotation_speed = PI/128.0;
     let bank_angle = PI/16.0;
 
-    // Añadir warping a planetas específicos con KeyRepeat::No
-    if window.is_key_pressed(Key::Key1, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[0], 8.0); // Sol (más lejos por ser más grande)
-    } else if window.is_key_pressed(Key::Key2, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[3], 3.0); // Tierra
-    } else if window.is_key_pressed(Key::Key3, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[5], 5.0); // Júpiter (más lejos por ser grande)
-    } else if window.is_key_pressed(Key::Key4, KeyRepeat::No) {
-        warp_to_planet(camera, &celestial_bodies[10], 12.0); // Agujero Negro (mucho más lejos)
+    // Manejar la vista aérea
+    if window.is_key_down(Key::B) {
+        if !camera.bird_eye_active {
+            // Guardar el estado actual antes de cambiar a vista aérea
+            camera.previous_state = Some((
+                camera.eye,
+                camera.center,
+                camera.pitch,
+                camera.yaw,
+                camera.roll
+            ));
+            set_bird_eye_view(camera, celestial_bodies);
+            camera.bird_eye_active = true;
+        }
+    } else if camera.bird_eye_active {
+        // Restaurar la posición anterior cuando se suelta B
+        if let Some((prev_eye, prev_center, prev_pitch, prev_yaw, prev_roll)) = camera.previous_state {
+            camera.eye = prev_eye;
+            camera.center = prev_center;
+            camera.pitch = prev_pitch;
+            camera.yaw = prev_yaw;
+            camera.roll = prev_roll;
+            camera.previous_state = None;
+            camera.bird_eye_active = false;
+        }
     }
 
-    // Calcular la nueva posición antes de aplicarla
-    let mut new_position = camera.eye;
+    // Solo procesar otros controles si no estamos en vista aérea
+    if !camera.bird_eye_active {
+        // Añadir warping a planetas específicos con KeyRepeat::No
+        if window.is_key_pressed(Key::Key1, KeyRepeat::No) {
+            warp_to_planet(camera, &celestial_bodies[0], 8.0); // Sol (más lejos por ser más grande)
+        } else if window.is_key_pressed(Key::Key2, KeyRepeat::No) {
+            warp_to_planet(camera, &celestial_bodies[3], 3.0); // Tierra
+        } else if window.is_key_pressed(Key::Key3, KeyRepeat::No) {
+            warp_to_planet(camera, &celestial_bodies[5], 5.0); // Júpiter (más lejos por ser grande)
+        } else if window.is_key_pressed(Key::Key4, KeyRepeat::No) {
+            warp_to_planet(camera, &celestial_bodies[10], 12.0); // Agujero Negro (mucho más lejos)
+        }
 
-    // Movimiento lateral con rotación
-    if window.is_key_down(Key::A) {
-        camera.rotate_yaw(-rotation_speed);
-        camera.set_roll(bank_angle);
-    } else if window.is_key_down(Key::D) {
-        camera.rotate_yaw(rotation_speed);
-        camera.set_roll(-bank_angle);
-    } else {
-        camera.set_roll(camera.roll * 0.9);
-    }
+        // Calcular la nueva posición antes de aplicarla
+        let mut new_position = camera.eye;
 
-    // Control de pitch
-    if window.is_key_down(Key::Up) {
-        camera.rotate_pitch(rotation_speed);
-    }
-    if window.is_key_down(Key::Down) {
-        camera.rotate_pitch(-rotation_speed);
-    }
+        // Movimiento lateral con rotación
+        if window.is_key_down(Key::A) {
+            camera.rotate_yaw(-rotation_speed);
+            camera.set_roll(bank_angle);
+        } else if window.is_key_down(Key::D) {
+            camera.rotate_yaw(rotation_speed);
+            camera.set_roll(-bank_angle);
+        } else {
+            camera.set_roll(camera.roll * 0.9);
+        }
 
-    // Calcular el movimiento deseado
-    let mut movement = Vec3::new(0.0, 0.0, 0.0);
-    
-    if window.is_key_down(Key::W) {
-        movement += camera.get_forward() * movement_speed;
-    }
-    if window.is_key_down(Key::S) {
-        movement += camera.get_forward() * (-movement_speed * 0.5);
-    }
-    if window.is_key_down(Key::Q) {
-        movement += camera.get_up() * (movement_speed * 0.7);
-    }
-    if window.is_key_down(Key::E) {
-        movement += camera.get_up() * (-movement_speed * 0.7);
-    }
+        // Control de pitch
+        if window.is_key_down(Key::Up) {
+            camera.rotate_pitch(rotation_speed);
+        }
+        if window.is_key_down(Key::Down) {
+            camera.rotate_pitch(-rotation_speed);
+        }
 
-    // Verificar colisiones antes de aplicar el movimiento
-    new_position += movement;
-    
-    if !check_collision(&new_position, celestial_bodies) {
-        camera.eye = new_position;
-        camera.center = camera.eye + camera.get_forward();
+        // Calcular el movimiento deseado
+        let mut movement = Vec3::new(0.0, 0.0, 0.0);
+        
+        if window.is_key_down(Key::W) {
+            movement += camera.get_forward() * movement_speed;
+        }
+        if window.is_key_down(Key::S) {
+            movement += camera.get_forward() * (-movement_speed * 0.5);
+        }
+        if window.is_key_down(Key::Q) {
+            movement += camera.get_up() * (movement_speed * 0.7);
+        }
+        if window.is_key_down(Key::E) {
+            movement += camera.get_up() * (-movement_speed * 0.7);
+        }
+
+        // Verificar colisiones antes de aplicar el movimiento
+        new_position += movement;
+        
+        if !check_collision(&new_position, celestial_bodies) {
+            camera.eye = new_position;
+            camera.center = camera.eye + camera.get_forward();
+        }
     }
 }
 
@@ -440,6 +470,28 @@ fn render_trail(
         framebuffer.set_current_color(color);
         framebuffer.point(x, y, position_screen.z);
     }
+}
+
+fn set_bird_eye_view(camera: &mut Camera, celestial_bodies: &[CelestialBody]) {
+    // Encontrar el sol (primer cuerpo celeste en nuestro array)
+    let sun_position = celestial_bodies[0].position;
+    
+    // Calcular la distancia más lejana de cualquier planeta al sol
+    let max_orbital_distance = celestial_bodies
+        .iter()
+        .map(|body| body.orbital_distance)
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or(0.0);
+    
+    // Posicionar la cámara sobre el sol a una altura que permita ver todo el sistema
+    let height = max_orbital_distance; // 1.5 veces la órbita más lejana para asegurar que todo sea visible
+    let target_pos = Vec3::new(sun_position.x, height, sun_position.z);
+    
+    // La dirección será mirando hacia abajo
+    let target_direction = Vec3::new(0.0, -1.0, 0.0);
+    
+    // Iniciar el warp a la nueva posición
+    camera.start_warp(target_pos, target_direction);
 }
 
 fn main() {
@@ -641,25 +693,26 @@ fn main() {
             }
         }
 
-        // 3. Finalmente la nave (siempre al final para que esté encima)
-        let ship_position = camera.eye 
-            + camera.get_forward() * spaceship.offset.z 
-            + camera.get_up() * spaceship.offset.y
-            + camera.get_right() * spaceship.offset.x;
-        
-        uniforms.model_matrix = create_model_matrix(
-            ship_position,
-            spaceship.scale,
-            Vec3::new(
-                0.0,          // No aplicamos pitch para mantener la nave nivelada
-                -camera.yaw + PI * 1.5,   // Combinamos las rotaciones (90° + 180° = 270° = 3PI/2)
-                camera.roll   // Mantenemos el roll para la inclinación en los giros
-            )
-        );
-        uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-        
-        // Asegurarnos de que la nave siempre esté en frente
-        render(&mut framebuffer, &uniforms, &spaceship_vertices, &PlanetType::Spaceship);
+        // Solo renderizar la nave si no estamos en vista aérea
+        if !camera.bird_eye_active {
+            let ship_position = camera.eye 
+                + camera.get_forward() * spaceship.offset.z 
+                + camera.get_up() * spaceship.offset.y
+                + camera.get_right() * spaceship.offset.x;
+            
+            uniforms.model_matrix = create_model_matrix(
+                ship_position,
+                spaceship.scale,
+                Vec3::new(
+                    0.0,
+                    -camera.yaw + PI * 1.5,
+                    camera.roll
+                )
+            );
+            uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
+            
+            render(&mut framebuffer, &uniforms, &spaceship_vertices, &PlanetType::Spaceship);
+        }
 
         // Actualizar posiciones de los planetas
         let earth_position = celestial_bodies.iter()

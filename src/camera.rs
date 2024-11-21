@@ -34,6 +34,8 @@ pub struct Camera {
   pub yaw: f32,
   pub roll: f32,
   pub warp_state: WarpState,
+  pub previous_state: Option<(Vec3, Vec3, f32, f32, f32)>,
+  pub bird_eye_active: bool,
 }
 
 impl Camera {
@@ -50,6 +52,8 @@ impl Camera {
       yaw,
       roll: 0.0,
       warp_state: WarpState::new(),
+      previous_state: None,
+      bird_eye_active: false,
     }
   }
 
