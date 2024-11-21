@@ -284,10 +284,10 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
     // Movimiento lateral con rotación
     if window.is_key_down(Key::A) {
         camera.rotate_yaw(-rotation_speed);
-        camera.set_roll(-bank_angle);
+        camera.set_roll(bank_angle);
     } else if window.is_key_down(Key::D) {
         camera.rotate_yaw(rotation_speed);
-        camera.set_roll(bank_angle);
+        camera.set_roll(-bank_angle);
     } else {
         camera.set_roll(camera.roll * 0.9);
     }
