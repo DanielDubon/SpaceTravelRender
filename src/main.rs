@@ -39,6 +39,12 @@ pub struct Uniforms {
     noise: FastNoiseLite
 }
 
+pub struct Spaceship {
+    model: Obj,
+    scale: f32,
+    offset: Vec3,
+}
+
 fn create_noise() -> FastNoiseLite {
     create_cloud_noise() 
 }
@@ -170,22 +176,30 @@ fn render(
         }
     }
 
- 
+    // Rasterization Stage
     let mut fragments = Vec::new();
     for tri in &triangles {
         fragments.extend(triangle(&tri[0], &tri[1], &tri[2]));
     }
 
-    
+    // Fragment Shader Stage
     for fragment in fragments {
         let x = fragment.position.x as usize;
         let y = fragment.position.y as usize;
         if x < framebuffer.width && y < framebuffer.height {
-            
-            let shaded_color = fragment_shader(&fragment, &uniforms, planet_type);
-            let color = shaded_color.to_hex();
-            framebuffer.set_current_color(color);
-            framebuffer.point(x, y, fragment.depth);
+            let depth = if matches!(planet_type, PlanetType::Spaceship) {
+                // Forzar que la nave siempre esté al frente
+                -1.0
+            } else {
+                fragment.depth
+            };
+
+            if framebuffer.should_draw(x, y, depth) {
+                let shaded_color = fragment_shader(&fragment, &uniforms, planet_type);
+                let color = shaded_color.to_hex();
+                framebuffer.set_current_color(color);
+                framebuffer.point(x, y, depth);
+            }
         }
     }
 }
@@ -304,6 +318,14 @@ fn main() {
         },
     ];
 
+    // Cargar el modelo de la nave (asegúrate de tener un modelo .obj de una nave)
+    let spaceship = Spaceship {
+        model: Obj::load("assets/models/nave.obj").expect("Failed to load spaceship"),
+        scale: 0.02,
+        offset: Vec3::new(0.0, -0.1, -1.0),
+    };
+    let spaceship_vertices = spaceship.model.get_vertex_array();
+
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
             break;
@@ -314,30 +336,11 @@ fn main() {
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
+        
+        // 1. Primero renderizar el skybox (fondo)
         skybox.render(&mut framebuffer, &uniforms, camera.eye);
 
-        // Encontrar la posición de la Tierra
-        let earth_position = celestial_bodies.iter()
-            .find(|body| matches!(body.shader_type, PlanetType::Earth))
-            .map(|body| body.position)
-            .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
-
-        // Actualizar la posición de la luna
-        let moon_orbit_radius = 2.0;
-        let moon_orbit_speed = 0.03;
-        let moon_angle = time as f32 * moon_orbit_speed;
-        
-        if let Some(moon) = celestial_bodies.iter_mut()
-            .find(|body| matches!(body.shader_type, PlanetType::Moon))
-        {
-            moon.position = earth_position + Vec3::new(
-                moon_orbit_radius * moon_angle.cos(),
-                0.0,
-                moon_orbit_radius * moon_angle.sin()
-            );
-        }
-
-        // Renderizar cada cuerpo celeste
+        // 2. Luego los planetas
         for body in &celestial_bodies {
             uniforms.model_matrix = create_model_matrix(
                 body.position,
@@ -350,6 +353,26 @@ fn main() {
             render(&mut framebuffer, &uniforms, &vertex_arrays, &body.shader_type);
         }
 
+        // 3. Finalmente la nave (siempre al final para que esté encima)
+        let ship_position = camera.eye 
+            + camera.get_forward() * spaceship.offset.z 
+            + camera.get_up() * spaceship.offset.y
+            + camera.get_right() * spaceship.offset.x;
+        
+        uniforms.model_matrix = create_model_matrix(
+            ship_position,
+            spaceship.scale,
+            Vec3::new(
+                0.0,          // No aplicamos pitch para mantener la nave nivelada
+                -camera.yaw + PI * 1.5,   // Combinamos las rotaciones (90° + 180° = 270° = 3PI/2)
+                camera.roll   // Mantenemos el roll para la inclinación en los giros
+            )
+        );
+        uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
+        
+        // Asegurarnos de que la nave siempre esté en frente
+        render(&mut framebuffer, &uniforms, &spaceship_vertices, &PlanetType::Spaceship);
+
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
             .unwrap();
@@ -357,48 +380,42 @@ fn main() {
 }
 
 fn handle_input(window: &Window, camera: &mut Camera) {
-    let movement_speed = 0.5;
-    let rotation_speed = PI/50.0;
-    let zoom_speed = 1.0;
+    let movement_speed = 0.2;
+    let rotation_speed = PI/128.0;
+    let bank_angle = PI/16.0;  // Reducimos el ángulo de inclinación
 
-    // Rotación de la cámara (mirando arriba/abajo)
-    if window.is_key_down(Key::Up) {
-        camera.rotate_pitch(-rotation_speed);
+    // Movimiento lateral con rotación
+    if window.is_key_down(Key::A) {
+        camera.rotate_yaw(-rotation_speed);
+        camera.set_roll(-bank_angle);  // Inclinación más sutil
+    } else if window.is_key_down(Key::D) {
+        camera.rotate_yaw(rotation_speed);
+        camera.set_roll(bank_angle);   // Inclinación más sutil
+    } else {
+        camera.set_roll(camera.roll * 0.9);  // Suavizar el retorno a posición neutral
     }
-    if window.is_key_down(Key::Down) {
+
+    // Control de pitch (arriba/abajo)
+    if window.is_key_down(Key::Up) {
         camera.rotate_pitch(rotation_speed);
     }
+    if window.is_key_down(Key::Down) {
+        camera.rotate_pitch(-rotation_speed);
+    }
 
-    // Movimiento WASD (adelante, izquierda, atrás, derecha)
-    let forward = camera.get_forward() * movement_speed;
-    let right = camera.get_right() * movement_speed;
-    
+    // Aceleración/Desaceleración
     if window.is_key_down(Key::W) {
         camera.move_forward(movement_speed);
     }
     if window.is_key_down(Key::S) {
-        camera.move_forward(-movement_speed);
-    }
-    if window.is_key_down(Key::A) {
-        camera.move_right(-movement_speed);
-    }
-    if window.is_key_down(Key::D) {
-        camera.move_right(movement_speed);
+        camera.move_forward(-movement_speed * 0.5);
     }
 
-    // Movimiento vertical (Q para subir, E para bajar)
+    // Movimiento vertical
     if window.is_key_down(Key::Q) {
-        camera.move_up(movement_speed);
+        camera.move_up(movement_speed * 0.7);
     }
     if window.is_key_down(Key::E) {
-        camera.move_up(-movement_speed);
-    }
-
-    // Zoom (1 para acercar, 2 para alejar)
-    if window.is_key_down(Key::Key1) {
-        camera.zoom(zoom_speed);
-    }
-    if window.is_key_down(Key::Key2) {
-        camera.zoom(-zoom_speed);
+        camera.move_up(-movement_speed * 0.7);
     }
 }

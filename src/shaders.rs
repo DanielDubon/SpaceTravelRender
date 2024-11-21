@@ -64,6 +64,10 @@ pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms, planet_type: &P
         PlanetType::Uranus => uranus_shader(fragment, uniforms),
         PlanetType::Neptune => neptune_shader(fragment, uniforms),
         PlanetType::BlackHole => black_hole_shader(fragment, uniforms),
+        PlanetType::Spaceship => {
+            
+            Color::new(192, 192, 192) 
+        }
     }
 }
 
@@ -192,7 +196,7 @@ fn earth_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
         1.0  // Tierra
     } else {
         // Transición suave en los bordes
-        ((noise_value - (threshold - transition_width)) / (transition_width * 2.0))
+        (noise_value - (threshold - transition_width)) / (transition_width * 2.0)
     };
 
     // Mezclar colores

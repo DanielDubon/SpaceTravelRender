@@ -1,6 +1,6 @@
 use nalgebra_glm::{Vec3, dot, Vec2};
 use crate::fragment::Fragment;
-use crate::vertex::{self, Vertex};
+use crate::vertex::Vertex;
 use crate::color::Color;
 
 pub fn triangle(v1: &Vertex, v2: &Vertex, v3: &Vertex) -> Vec<Fragment> {
