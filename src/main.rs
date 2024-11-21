@@ -471,8 +471,8 @@ fn main() {
             scale: 0.2,
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Moon,
-            orbital_distance: 36.0,
-            orbital_speed: 0.0003,
+            orbital_distance: 2.0,
+            orbital_speed: 0.03,
         },
         CelestialBody {
             position: Vec3::new(-20.0, 0.0, -20.0),
@@ -554,10 +554,33 @@ fn main() {
         render(&mut framebuffer, &uniforms, &spaceship_vertices, &PlanetType::Spaceship);
 
         // Actualizar posiciones de los planetas
-        for body in &mut celestial_bodies[1..] {  // Empezar desde 1 para saltar el sol
-            let angle = time as f32 * body.orbital_speed;
-            body.position.x = body.orbital_distance * angle.cos();
-            body.position.z = body.orbital_distance * angle.sin();
+        let earth_position = celestial_bodies.iter()
+            .find(|b| matches!(b.shader_type, PlanetType::Earth))
+            .map(|earth| earth.position)
+            .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
+
+        for body in &mut celestial_bodies {
+            match body.shader_type {
+                PlanetType::Sun => (), // El sol no se mueve
+                PlanetType::Moon => {
+                    let moon_angle = time as f32 * body.orbital_speed;
+                    body.position = earth_position + Vec3::new(
+                        body.orbital_distance * moon_angle.cos(),
+                        0.0,
+                        body.orbital_distance * moon_angle.sin()
+                    );
+                },
+                PlanetType::BlackHole => {
+                    let angle = time as f32 * body.orbital_speed;
+                    body.position.x = body.orbital_distance * angle.cos();
+                    body.position.z = body.orbital_distance * angle.sin();
+                },
+                _ => {
+                    let angle = time as f32 * body.orbital_speed;
+                    body.position.x = body.orbital_distance * angle.cos();
+                    body.position.z = body.orbital_distance * angle.sin();
+                }
+            }
         }
 
         window
