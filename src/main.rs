@@ -261,6 +261,70 @@ impl Frustum {
     }
 }
 
+fn check_collision(position: &Vec3, celestial_bodies: &[CelestialBody]) -> bool {
+    for body in celestial_bodies {
+        let distance = (position - body.position).magnitude();
+        let collision_radius = body.scale * 2.0;
+        
+        if distance < collision_radius {
+            return true; // Hay colisión
+        }
+    }
+    false // No hay colisión
+}
+
+fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[CelestialBody]) {
+    let movement_speed = 0.2;
+    let rotation_speed = PI/128.0;
+    let bank_angle = PI/16.0;
+
+    // Calcular la nueva posición antes de aplicarla
+    let mut new_position = camera.eye;
+
+    // Movimiento lateral con rotación
+    if window.is_key_down(Key::A) {
+        camera.rotate_yaw(-rotation_speed);
+        camera.set_roll(-bank_angle);
+    } else if window.is_key_down(Key::D) {
+        camera.rotate_yaw(rotation_speed);
+        camera.set_roll(bank_angle);
+    } else {
+        camera.set_roll(camera.roll * 0.9);
+    }
+
+    // Control de pitch
+    if window.is_key_down(Key::Up) {
+        camera.rotate_pitch(rotation_speed);
+    }
+    if window.is_key_down(Key::Down) {
+        camera.rotate_pitch(-rotation_speed);
+    }
+
+    // Calcular el movimiento deseado
+    let mut movement = Vec3::new(0.0, 0.0, 0.0);
+    
+    if window.is_key_down(Key::W) {
+        movement += camera.get_forward() * movement_speed;
+    }
+    if window.is_key_down(Key::S) {
+        movement += camera.get_forward() * (-movement_speed * 0.5);
+    }
+    if window.is_key_down(Key::Q) {
+        movement += camera.get_up() * (movement_speed * 0.7);
+    }
+    if window.is_key_down(Key::E) {
+        movement += camera.get_up() * (-movement_speed * 0.7);
+    }
+
+    // Verificar colisiones antes de aplicar el movimiento
+    new_position += movement;
+    
+    if !check_collision(&new_position, celestial_bodies) {
+        camera.eye = new_position;
+        camera.center = camera.eye + camera.get_forward();
+    }
+}
+
 fn main() {
     let window_width = 800;
     let window_height = 600;
@@ -398,7 +462,7 @@ fn main() {
 
         time += 1;
 
-        handle_input(&window, &mut camera);
+        handle_input(&window, &mut camera, &celestial_bodies);
 
         framebuffer.clear();
         
@@ -448,72 +512,6 @@ fn main() {
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
             .unwrap();
-    }
-}
-
-fn handle_input(window: &Window, camera: &mut Camera) {
-    let movement_speed = 0.2;
-    let rotation_speed = PI/128.0;
-    let bank_angle = PI/16.0;  // Reducimos el ángulo de inclinación
-
-    // Movimiento lateral con rotación
-    if window.is_key_down(Key::A) {
-        camera.rotate_yaw(-rotation_speed);
-        camera.set_roll(-bank_angle);  // Inclinación más sutil
-    } else if window.is_key_down(Key::D) {
-        camera.rotate_yaw(rotation_speed);
-        camera.set_roll(bank_angle);   // Inclinación más sutil
-    } else {
-        camera.set_roll(camera.roll * 0.9);  // Suavizar el retorno a posición neutral
-    }
-
-    // Control de pitch (arriba/abajo)
-    if window.is_key_down(Key::Up) {
-        camera.rotate_pitch(rotation_speed);
-    }
-    if window.is_key_down(Key::Down) {
-        camera.rotate_pitch(-rotation_speed);
-    }
-
-    // Aceleración/Desaceleración
-    if window.is_key_down(Key::W) {
-        camera.move_forward(movement_speed);
-    }
-    if window.is_key_down(Key::S) {
-        camera.move_forward(-movement_speed * 0.5);
-    }
-
-    // Movimiento vertical
-    if window.is_key_down(Key::Q) {
-        camera.move_up(movement_speed * 0.7);
-    }
-    if window.is_key_down(Key::E) {
-        camera.move_up(-movement_speed * 0.7);
-    }
-}
-struct ObjectPool {
-    vertices: Vec<Vec<Vertex>>,
-    available: Vec<usize>,
-}
-
-impl ObjectPool {
-    fn new() -> Self {
-        Self {
-            vertices: Vec::new(),
-            available: Vec::new(),
-        }
-    }
-
-    fn get_vertices(&mut self) -> Option<&[Vertex]> {
-        if let Some(index) = self.available.pop() {
-            Some(&self.vertices[index])
-        } else {
-            None
-        }
-    }
-
-    fn return_vertices(&mut self, index: usize) {
-        self.available.push(index);
     }
 }
 
