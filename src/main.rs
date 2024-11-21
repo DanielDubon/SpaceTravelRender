@@ -339,16 +339,10 @@ fn handle_input(window: &Window, camera: &mut Camera, celestial_bodies: &[Celest
 fn warp_to_planet(camera: &mut Camera, body: &CelestialBody, distance: f32) {
     // Calcular posición relativa considerando el tamaño del planeta
     let offset = Vec3::new(0.0, 0.0, distance + body.scale);
-    camera.eye = body.position + offset;
+    let target_pos = body.position + offset;
+    let target_direction = (body.position - target_pos).normalize();
     
-    // Orientar la cámara hacia el planeta
-    let direction = (body.position - camera.eye).normalize();
-    camera.pitch = (direction.y).asin();
-    camera.yaw = direction.z.atan2(direction.x);
-    camera.roll = 0.0;
-    
-    // Actualizar el centro de la vista
-    camera.center = camera.eye + camera.get_forward();
+    camera.start_warp(target_pos, target_direction);
 }
 
 fn main() {
@@ -481,14 +475,26 @@ fn main() {
         window_width as f32 / window_height as f32  // Aspect ratio
     );
 
+    let mut last_time = std::time::Instant::now();
+
     while window.is_open() {
+        let current_time = std::time::Instant::now();
+        let dt = current_time.duration_since(last_time).as_secs_f32();
+        last_time = current_time;
+
         if window.is_key_down(Key::Escape) {
             break;
         }
 
         time += 1;
 
-        handle_input(&window, &mut camera, &celestial_bodies);
+        // Actualizar el warp antes del input normal
+        camera.update_warp(dt);
+
+        // Solo procesar input si no estamos en warp
+        if !camera.warp_state.is_active {
+            handle_input(&window, &mut camera, &celestial_bodies);
+        }
 
         framebuffer.clear();
         
