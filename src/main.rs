@@ -1,4 +1,4 @@
-use nalgebra_glm::{Vec3, Mat4, look_at, perspective};
+use nalgebra_glm::{Vec3, Vec4, Mat4, look_at, perspective};
 use minifb::{Key, Window, WindowOptions, KeyRepeat};
 use std::f32::consts::PI;
 mod skybox;
@@ -30,6 +30,7 @@ pub struct CelestialBody {
     shader_type: PlanetType,
     orbital_distance: f32,
     orbital_speed: f32,
+    trail: Trail,
 }
 
 pub struct Uniforms {
@@ -46,6 +47,53 @@ pub struct Spaceship {
     model: Obj,
     scale: f32,
     offset: Vec3,
+}
+
+pub struct TrailParticle {
+    position: Vec3,
+    color: u32,
+    lifetime: f32,
+    size: f32,
+}
+
+pub struct Trail {
+    particles: Vec<TrailParticle>,
+    max_particles: usize,
+    spawn_timer: f32,
+}
+
+impl Trail {
+    fn new(max_particles: usize) -> Self {
+        Self {
+            particles: Vec::with_capacity(max_particles),
+            max_particles,
+            spawn_timer: 0.0,
+        }
+    }
+
+    fn update(&mut self, dt: f32) {
+        self.particles.retain_mut(|particle| {
+            particle.lifetime -= dt;
+            particle.size *= 0.999;
+            particle.lifetime > 0.0
+        });
+    }
+
+    fn add_particle(&mut self, position: Vec3, color: u32, is_moon: bool) {
+        if self.particles.len() >= self.max_particles {
+            self.particles.remove(0);
+        }
+
+        let lifetime = if is_moon { 2.0 } else { 200000.0 };
+        let size = if is_moon { 0.2 } else { 0.50000 };
+
+        self.particles.push(TrailParticle {
+            position,
+            color,
+            lifetime,
+            size,
+        });
+    }
 }
 
 fn create_noise() -> FastNoiseLite {
@@ -347,6 +395,48 @@ fn warp_to_planet(camera: &mut Camera, body: &CelestialBody, distance: f32) {
     camera.start_warp(target_pos, target_direction);
 }
 
+fn render_trail(
+    framebuffer: &mut Framebuffer,
+    uniforms: &Uniforms,
+    particle: &TrailParticle,
+) {
+    let model_matrix = create_model_matrix(
+        particle.position,
+        particle.size,
+        Vec3::new(0.0, 0.0, 0.0)
+    );
+
+    let position_clip = uniforms.projection_matrix * uniforms.view_matrix * model_matrix * Vec4::new(0.0, 0.0, 0.0, 1.0);
+    
+    if position_clip.w <= 0.0 {
+        return;
+    }
+
+    let position_ndc = Vec3::new(
+        position_clip.x / position_clip.w,
+        position_clip.y / position_clip.w,
+        position_clip.z / position_clip.w,
+    );
+
+    let position_screen = uniforms.viewport_matrix * Vec4::new(
+        position_ndc.x,
+        position_ndc.y,
+        position_ndc.z,
+        1.0,
+    );
+
+    let x = position_screen.x as usize;
+    let y = position_screen.y as usize;
+
+    if x < framebuffer.width && y < framebuffer.height {
+        let alpha = (particle.lifetime * 255.0) as u32;
+        let color = (particle.color & 0x00FFFFFF) | (alpha << 24);
+        
+        framebuffer.set_current_color(color);
+        framebuffer.point(x, y, position_screen.z);
+    }
+}
+
 fn main() {
     let window_width = 800;
     let window_height = 600;
@@ -401,6 +491,7 @@ fn main() {
             shader_type: PlanetType::Sun,
             orbital_distance: 0.0,
             orbital_speed: 0.0,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(6.0, 0.0, 0.0),
@@ -408,7 +499,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Mercury,
             orbital_distance: 12.0,
-            orbital_speed: 0.0002,
+            orbital_speed: 0.002,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(12.0, 0.0, 0.0),
@@ -416,7 +508,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Venus,
             orbital_distance: 24.0,
-            orbital_speed: 0.00015,
+            orbital_speed: 0.0015,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(18.0, 0.0, 0.0),
@@ -424,7 +517,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Earth,
             orbital_distance: 36.0,
-            orbital_speed: 0.0001,
+            orbital_speed: 0.001,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(24.0, 0.0, 0.0),
@@ -432,7 +526,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Mars,
             orbital_distance: 48.0,
-            orbital_speed: 0.00008,
+            orbital_speed: 0.0008,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(32.0, 0.0, 0.0),
@@ -440,7 +535,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Jupiter,
             orbital_distance: 64.0,
-            orbital_speed: 0.00005,
+            orbital_speed: 0.0005,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(40.0, 0.0, 0.0),
@@ -448,7 +544,8 @@ fn main() {
             rotation: Vec3::new(0.2, 0.0, 0.0),
             shader_type: PlanetType::Saturn,
             orbital_distance: 80.0,
-            orbital_speed: 0.00004,
+            orbital_speed: 0.0004,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(48.0, 0.0, 0.0),
@@ -456,7 +553,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Uranus,
             orbital_distance: 96.0,
-            orbital_speed: 0.00003,
+            orbital_speed: 0.0003,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(56.0, 0.0, 0.0),
@@ -464,7 +562,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::Neptune,
             orbital_distance: 102.0,
-            orbital_speed: 0.00002,
+            orbital_speed: 0.0002,
+            trail: Trail::new(50000),
         },
         CelestialBody {
             position: Vec3::new(18.0, 0.0, 2.0),
@@ -473,6 +572,7 @@ fn main() {
             shader_type: PlanetType::Moon,
             orbital_distance: 2.0,
             orbital_speed: 0.03,
+            trail: Trail::new(50),
         },
         CelestialBody {
             position: Vec3::new(-20.0, 0.0, -20.0),
@@ -480,7 +580,8 @@ fn main() {
             rotation: Vec3::new(0.0, 0.0, 0.0),
             shader_type: PlanetType::BlackHole,
             orbital_distance: 280.0,
-            orbital_speed: 0.00001,
+            orbital_speed: 0.0001,
+            trail: Trail::new(50000),
         },
     ];
 
@@ -581,6 +682,36 @@ fn main() {
                     body.position.z = body.orbital_distance * angle.sin();
                 }
             }
+        }
+
+        // Primero renderizar las estelas
+        for body in &celestial_bodies {
+            for particle in &body.trail.particles {
+                render_trail(&mut framebuffer, &uniforms, particle);
+            }
+        }
+
+        // Actualizar las estelas al final del frame
+        for body in &mut celestial_bodies {
+            body.trail.update(0.016);
+            
+            let color = match body.shader_type {
+                PlanetType::Sun => 0xFFFFAA00,     // Naranja brillante
+                PlanetType::Mercury => 0xFFAA8866,  // Marrón claro
+                PlanetType::Venus => 0xFFFFCC99,    // Amarillo pálido
+                PlanetType::Earth => 0xFF0066FF,    // Azul brillante
+                PlanetType::Mars => 0xFFFF3300,     // Rojo anaranjado
+                PlanetType::Jupiter => 0xFFFFAA66,  // Naranja suave
+                PlanetType::Saturn => 0xFFFFCC66,   // Dorado
+                PlanetType::Uranus => 0xFF66FFFF,   // Cyan claro
+                PlanetType::Neptune => 0xFF0066FF,  // Azul profundo
+                PlanetType::Moon => 0xFFCCCCCC,     // Gris claro
+                PlanetType::BlackHole => 0xFF440044, // Púrpura oscuro
+                PlanetType::Spaceship => 0xFFFFFFFF, // Blanco
+            };
+            
+            let is_moon = matches!(body.shader_type, PlanetType::Moon);
+            body.trail.add_particle(body.position, color, is_moon);
         }
 
         window
