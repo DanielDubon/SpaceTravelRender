@@ -4,6 +4,8 @@
 
 Space Travel Render es un simulador gráfico en 3D que permite explorar un sistema solar ficticio. Los usuarios pueden navegar por el espacio, observar diferentes cuerpos celestes y experimentar la iluminación dinámica proporcionada por el Sol.
 
+- Video de ejecucion: https://youtu.be/eAouo8UbQ7k
+
 ## Requisitos
 
 - Rust (versión 1.50 o superior)
