@@ -12,4 +12,5 @@ pub enum PlanetType {
     Neptune,
     BlackHole,
     Spaceship,
+    Rei,
 }

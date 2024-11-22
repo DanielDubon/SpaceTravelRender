@@ -41,6 +41,7 @@ pub struct Uniforms {
     time: u32,
     noise: FastNoiseLite,
     camera_position: Vec3,
+    sun_position: Vec3,
 }
 
 pub struct Spaceship {
@@ -529,6 +530,7 @@ fn main() {
     let noise = create_noise();
     let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
     let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
+    let sun_position = Vec3::new(0.0, 0.0, 0.0);
     let mut uniforms = Uniforms { 
         model_matrix: Mat4::identity(), 
         view_matrix: Mat4::identity(), 
@@ -537,6 +539,7 @@ fn main() {
         time: 0, 
         noise,
         camera_position: camera.eye,
+        sun_position,
     };
 
     
@@ -640,6 +643,15 @@ fn main() {
             orbital_speed: 0.0001,
             trail: Trail::new(50000),
         },
+        CelestialBody {
+            position: Vec3::new(-10.0, 0.0, -10.0),
+            scale: 20.5,
+            rotation: Vec3::new(0.0, 0.0, 0.0),
+            shader_type: PlanetType::Rei,
+            orbital_distance: 140.0,
+            orbital_speed: 0.0,
+            trail: Trail::new(5),
+        },
     ];
 
     // Cargar el modelo de la nave (asegúrate de tener un modelo .obj de una nave)
@@ -656,6 +668,10 @@ fn main() {
         1000.0,         // Far plane
         window_width as f32 / window_height as f32  // Aspect ratio
     );
+
+    // Cargar el modelo de Rei
+    let rei_model = Obj::load("assets/models/Rei_A-Pose_2.obj").expect("Failed to load Rei model");
+    let rei_vertices = rei_model.get_vertex_array();
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
@@ -689,7 +705,13 @@ fn main() {
                 uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
                 uniforms.time = time;
                 
-                render(&mut framebuffer, &uniforms, &vertex_arrays, &body.shader_type);
+                // Usar los vértices correspondientes según el tipo
+                let vertices = match body.shader_type {
+                    PlanetType::Rei => &rei_vertices,
+                    _ => &vertex_arrays,
+                };
+                
+                render(&mut framebuffer, &uniforms, vertices, &body.shader_type);
             }
         }
 
@@ -768,6 +790,7 @@ fn main() {
                 PlanetType::Moon => 0xFFCCCCCC,     // Gris claro
                 PlanetType::BlackHole => 0xFF440044, // Púrpura oscuro
                 PlanetType::Spaceship => 0xFFFFFFFF, // Blanco
+                PlanetType::Rei => 0xFFFF69B4,      // Rosa (Hot Pink)
             };
             
             let is_moon = matches!(body.shader_type, PlanetType::Moon);

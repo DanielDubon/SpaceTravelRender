@@ -48,6 +48,12 @@ pub fn vertex_shader(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
 }
 
 pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms, planet_type: &PlanetType) -> Color {
+    // Obtener la posición del Sol desde los uniforms
+    let sun_position = uniforms.sun_position; // Asegúrate de que esto esté correctamente inicializado
+
+    // Calcular la dirección de la luz
+    let light_direction = (sun_position - fragment.vertex_position).normalize();
+
     match planet_type {
         PlanetType::Sun => lava_shader(fragment, uniforms),
         PlanetType::Mercury => mercury_shader(fragment, uniforms),
@@ -67,6 +73,11 @@ pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms, planet_type: &P
         PlanetType::Spaceship => {
             
             Color::new(192, 192, 192) 
+        },
+        PlanetType::Rei => {
+            // Un color base para Rei
+            let base_color = Color::new(255, 255, 255);  // Color piel claro
+            base_color * fragment.intensity
         }
     }
 }
