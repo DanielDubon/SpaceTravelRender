@@ -66,6 +66,3 @@ Asegúrate de tener los modelos necesarios en la carpeta `assets/models/`:
 
 Las contribuciones son bienvenidas. Si deseas contribuir, por favor abre un issue o un pull request.
 
-## Licencia
-
-Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
